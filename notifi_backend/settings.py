@@ -2,7 +2,8 @@ import os
 import logging
 from pathlib import Path
 from datetime import timedelta
-from urllib.parse import urlparse, unquote
+
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -82,29 +83,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'notifi_backend.wsgi.application'
 
-# Database — use DATABASE_URL on Render (Postgres), else local SQLite
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if DATABASE_URL:
-    db = urlparse(DATABASE_URL)
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': unquote(db.path[1:]),
-            'USER': unquote(db.username or ''),
-            'PASSWORD': unquote(db.password or ''),
-            'HOST': db.hostname,
-            'PORT': db.port or 5432,
-            'OPTIONS': {'sslmode': 'require'},
-            'CONN_MAX_AGE': 60,
-        }
-    }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+# Database — Postgres on Render via DATABASE_URL, SQLite locally
+DATABASES = {
+    'default': dj_database_url.config(
+        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        conn_max_age=600,
+        ssl_require=bool(os.environ.get('DATABASE_URL')),
+    )
+}
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
