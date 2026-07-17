@@ -2,6 +2,6 @@
 set -o errexit
 
 # Free-tier safe: no Render Shell required.
-# Migrate on boot so admin/auth tables always exist.
 python manage.py migrate --noinput
+python manage.py ensure_superuser
 exec gunicorn notifi_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000}
