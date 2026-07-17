@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-m+!#qg(0i!996g@_0i03m^4-q7(w0!g7(z$r*0z*!x5n-n3tqy'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*']
 
@@ -127,3 +127,5 @@ SIMPLE_JWT = {
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
 }
+# --- Static Files Configuration ---
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
