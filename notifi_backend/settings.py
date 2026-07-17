@@ -1,7 +1,8 @@
 import os
+import logging
 from pathlib import Path
 from datetime import timedelta
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,6 +29,9 @@ CSRF_TRUSTED_ORIGINS = [
     ).split(',')
     if origin.strip()
 ]
+
+# Render / reverse proxy
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 INSTALLED_APPS = [
@@ -85,12 +89,13 @@ if DATABASE_URL:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': db.path[1:],
-            'USER': db.username,
-            'PASSWORD': db.password,
+            'NAME': unquote(db.path[1:]),
+            'USER': unquote(db.username or ''),
+            'PASSWORD': unquote(db.password or ''),
             'HOST': db.hostname,
             'PORT': db.port or 5432,
             'OPTIONS': {'sslmode': 'require'},
+            'CONN_MAX_AGE': 60,
         }
     }
 else:
@@ -145,8 +150,40 @@ SIMPLE_JWT = {
 }
 
 # --- Static files (WhiteNoise) ---
-# CompressedStaticFilesStorage avoids hard 500s from missing manifest entries.
-# Always run collectstatic in the Render build command.
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+
+# Show real exceptions in Render logs (Logs tab)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{levelname}] {asctime} {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+}
