@@ -1,17 +1,33 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+from urllib.parse import urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-m+!#qg(0i!996g@_0i03m^4-q7(w0!g7(z$r*0z*!x5n-n3tqy'
+# SECURITY
+SECRET_KEY = os.environ.get(
+    'SECRET_KEY',
+    'django-insecure-m+!#qg(0i!996g@_0i03m^4-q7(w0!g7(z$r*0z*!x5n-n3tqy',
+)
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get('ALLOWED_HOSTS', '*').split(',')
+    if host.strip()
+]
 
-ALLOWED_HOSTS = ['*']
+# CSRF: required for HTTPS admin/login on Render
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        'CSRF_TRUSTED_ORIGINS',
+        'https://notify-backend-yoqk.onrender.com',
+    ).split(',')
+    if origin.strip()
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -21,17 +37,17 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     # Third party packages
     'rest_framework',
     'corsheaders',
-    
+
     # Internal apps
     'api.apps.ApiConfig',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware', # Put CorsMiddleware at the top
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -61,52 +77,51 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'notifi_backend.wsgi.application'
-ASGI_APPLICATION = 'notifi_backend.asgi.application'
 
-# Database
-# https://docs.djangoproject.com/en/stable/ref/settings/#databases
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Database — use DATABASE_URL on Render (Postgres), else local SQLite
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    db = urlparse(DATABASE_URL)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': db.path[1:],
+            'USER': db.username,
+            'PASSWORD': db.password,
+            'HOST': db.hostname,
+            'PORT': db.port or 5432,
+            'OPTIONS': {'sslmode': 'require'},
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
-# https://docs.djangoproject.com/en/stable/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
 # Internationalization
-# https://docs.djangoproject.com/en/stable/topics/i18n/
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/stable/howto/static-files/
-STATIC_URL = 'static/'
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CORS Configurations ---
-CORS_ALLOW_ALL_ORIGINS = True # For easy local integration testing
+# --- CORS ---
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
-# --- REST Framework Configuration ---
+# --- REST Framework ---
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -116,9 +131,9 @@ REST_FRAMEWORK = {
     ),
 }
 
-# --- Simple JWT Configuration ---
+# --- Simple JWT ---
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1), # 1 day for local development convenience
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': False,
@@ -128,7 +143,10 @@ SIMPLE_JWT = {
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
 }
-# --- Static Files Configuration ---
+
+# --- Static files (WhiteNoise) ---
+# CompressedStaticFilesStorage avoids hard 500s from missing manifest entries.
+# Always run collectstatic in the Render build command.
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
