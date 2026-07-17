@@ -1,1 +1,1 @@
-web: gunicorn notifi_backend.wsgi:application
+web: ./start.sh
