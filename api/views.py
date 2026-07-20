@@ -8,15 +8,30 @@ timezone.utc = py_timezone.utc
 from django.db import models
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
-from rest_framework import viewsets, permissions, status, generics
+from rest_framework import viewsets, permissions, status, generics, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from drf_spectacular.utils import extend_schema, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 import pdfplumber
 
 from .models import UserProfile, Transaction, Conflict
 from .serializers import UserProfileSerializer, UserRegisterSerializer, TransactionSerializer, ConflictSerializer
 from .matching_engine import match_and_merge_transaction
+
+
+# --- Schema helpers for plain APIViews ---
+class AlertSerializer(serializers.Serializer):
+    sender = serializers.CharField()
+    body = serializers.CharField()
+    timestamp = serializers.IntegerField(required=False, help_text='Unix epoch in milliseconds')
+    type = serializers.CharField(required=False, default='sms')
+
+
+class StatementImportSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    type = serializers.ChoiceField(choices=['csv', 'pdf'], required=False)
 
 # --- Helper to generate JWT tokens for a user ---
 def get_tokens_for_user(user):
@@ -29,7 +44,9 @@ def get_tokens_for_user(user):
 
 class UserRegisterView(APIView):
     permission_classes = [permissions.AllowAny]
+    serializer_class = UserRegisterSerializer
 
+    @extend_schema(request=UserRegisterSerializer, tags=['Auth'])
     def post(self, request):
         serializer = UserRegisterSerializer(data=request.data)
         if serializer.is_valid():
@@ -46,6 +63,7 @@ class UserRegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(tags=['Profile'])
 class UserProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
 
@@ -76,9 +94,11 @@ class StandardResultsSetPagination(PageNumberPagination):
     max_page_size = 100
 
 
+@extend_schema(tags=['Transactions'])
 class TransactionViewSet(viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
     pagination_class = StandardResultsSetPagination
+    queryset = Transaction.objects.all()
 
     def get_queryset(self):
         # Check and apply automated salary credits on the 10th if needed before querying
@@ -171,6 +191,25 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
 
 class BulkInterceptionsView(APIView):
+    serializer_class = AlertSerializer
+
+    @extend_schema(
+        request=AlertSerializer(many=True),
+        tags=['Transactions'],
+        examples=[
+            OpenApiExample(
+                'SMS alerts',
+                value=[
+                    {
+                        'sender': 'AD-HDFCBK',
+                        'body': 'Rs.500.00 debited from A/c XX1234 to UPI/merchant',
+                        'timestamp': 1720932000000,
+                        'type': 'sms',
+                    }
+                ],
+            )
+        ],
+    )
     def post(self, request):
         """
         Receives intercepted alert lists from Flutter:
@@ -265,6 +304,7 @@ class BulkInterceptionsView(APIView):
 
 
 class DashboardView(APIView):
+    @extend_schema(tags=['Analytics'], responses={200: OpenApiTypes.OBJECT})
     def get(self, request):
         user = request.user
         profile = user.profile
@@ -311,6 +351,7 @@ class DashboardView(APIView):
 
 
 class InsightsView(APIView):
+    @extend_schema(tags=['Analytics'], responses={200: OpenApiTypes.OBJECT})
     def get(self, request):
         user = request.user
         profile = user.profile
@@ -510,6 +551,9 @@ def parse_canara_statement(text, user):
 
 
 class StatementImportView(APIView):
+    serializer_class = StatementImportSerializer
+
+    @extend_schema(request=StatementImportSerializer, tags=['Transactions'])
     def post(self, request):
         user = request.user
         file_obj = request.FILES.get('file')

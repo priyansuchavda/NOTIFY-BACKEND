@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .views import (
     UserRegisterView,
     UserProfileView,
@@ -14,11 +15,19 @@ from .views import (
 router = DefaultRouter()
 router.register(r'transactions', TransactionViewSet, basename='transaction')
 
+TokenObtainPairTagged = extend_schema_view(
+    post=extend_schema(tags=['Auth']),
+)(TokenObtainPairView)
+
+TokenRefreshTagged = extend_schema_view(
+    post=extend_schema(tags=['Auth']),
+)(TokenRefreshView)
+
 urlpatterns = [
     # Auth routing
     path('auth/register/', UserRegisterView.as_view(), name='register'),
-    path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/token/', TokenObtainPairTagged.as_view(), name='token_obtain_pair'),
+    path('auth/token/refresh/', TokenRefreshTagged.as_view(), name='token_refresh'),
     
     # Profile routing
     path('profile/', UserProfileView.as_view(), name='profile'),

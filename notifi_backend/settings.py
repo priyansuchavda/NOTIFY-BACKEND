@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     # Third party packages
     'rest_framework',
     'corsheaders',
+    'drf_spectacular',
 
     # Internal apps
     'api.apps.ApiConfig',
@@ -120,6 +121,26 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# --- OpenAPI / Swagger (drf-spectacular) ---
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'NotiFi API',
+    'DESCRIPTION': 'API for NotiFi — SMS interception, bank statement import, and expense tracking.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SECURITY': [{'BearerAuth': []}],
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'BearerAuth': {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            }
+        }
+    },
 }
 
 # --- Simple JWT ---
